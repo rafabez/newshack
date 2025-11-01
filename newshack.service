@@ -1,0 +1,23 @@
+[Unit]
+Description=News Hack Bot - Cybersecurity News Aggregator
+After=network.target
+
+[Service]
+Type=simple
+User=YOUR_USERNAME
+WorkingDirectory=/home/YOUR_USERNAME/newshack
+Environment="PATH=/home/YOUR_USERNAME/newshack/venv/bin"
+ExecStart=/home/YOUR_USERNAME/newshack/venv/bin/python3 /home/YOUR_USERNAME/newshack/main.py
+Restart=always
+RestartSec=10
+
+# Logging
+StandardOutput=append:/home/YOUR_USERNAME/newshack/logs/systemd.log
+StandardError=append:/home/YOUR_USERNAME/newshack/logs/systemd-error.log
+
+# Security
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
