@@ -110,10 +110,18 @@ Seu agregador de notícias de hacking e cibersegurança.
 <b>🎯 Categorias Disponíveis:</b>
 • News - Notícias gerais
 • Research - Pesquisas técnicas
-• Exploits - Vulnerabilidades e exploits
+• Exploits - Exploits e PoCs
+• Vulnerabilities - CVEs e vulnerabilidades
 • Malware - Análise de malware
 • Threat Intel - Inteligência de ameaças
 • Tools - Ferramentas de hacking
+• Tutorials - Tutoriais e guias
+• Pentest - Testes de penetração
+• Advisories - Alertas de segurança
+• Analysis - Análises de segurança
+• Cloud - Segurança em nuvem
+• Crypto - Criptografia
+• Community - Comunidade e discussões
 
 O bot verifica automaticamente os feeds e envia novas notícias!
 """
@@ -248,9 +256,17 @@ O bot verifica automaticamente os feeds e envia novas notícias!
             [InlineKeyboardButton("🔥 News", callback_data="cat_news"),
              InlineKeyboardButton("🔬 Research", callback_data="cat_research")],
             [InlineKeyboardButton("💣 Exploits", callback_data="cat_exploits"),
-             InlineKeyboardButton("🦠 Malware", callback_data="cat_malware")],
-            [InlineKeyboardButton("🎯 Threat Intel", callback_data="cat_threat_intel"),
-             InlineKeyboardButton("🛠️ Tools", callback_data="cat_tools")],
+             InlineKeyboardButton("🛆 Vulnerabilities", callback_data="cat_vulnerabilities")],
+            [InlineKeyboardButton("🦠 Malware", callback_data="cat_malware"),
+             InlineKeyboardButton("🎯 Threat Intel", callback_data="cat_threat_intel")],
+            [InlineKeyboardButton("🛠️ Tools", callback_data="cat_tools"),
+             InlineKeyboardButton("📖 Tutorials", callback_data="cat_tutorials")],
+            [InlineKeyboardButton("🎯 Pentest", callback_data="cat_pentest"),
+             InlineKeyboardButton("⚠️ Advisories", callback_data="cat_advisories")],
+            [InlineKeyboardButton("📊 Analysis", callback_data="cat_analysis"),
+             InlineKeyboardButton("☁️ Cloud", callback_data="cat_cloud")],
+            [InlineKeyboardButton("🔐 Crypto", callback_data="cat_crypto"),
+             InlineKeyboardButton("👥 Community", callback_data="cat_community")],
             [InlineKeyboardButton("📚 All Categories", callback_data="cat_all")]
         ]
         
