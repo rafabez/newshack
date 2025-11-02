@@ -164,9 +164,9 @@ RSS_FEEDS = {
     "underground": [
         {
             "name": "Darknet - Hacking Tools",
-            "url": "http://www.darknet.org.uk/feed/",
+            "url": "https://www.darknet.org.uk/feed/",
             "category": "tools",
-            "priority": "high"
+            "priority": "medium"
         },
         {
             "name": "Hacker Combat",
@@ -182,7 +182,7 @@ RSS_FEEDS = {
         },
         {
             "name": "Kitploit - Hacking Tools",
-            "url": "https://feeds.feedburner.com/PentestTools",
+            "url": "https://www.kitploit.com/feeds/posts/default",
             "category": "tools",
             "priority": "high"
         },
@@ -195,6 +195,12 @@ RSS_FEEDS = {
         {
             "name": "GitHub Security Lab",
             "url": "https://securitylab.github.com/research/feed.xml",
+            "category": "research",
+            "priority": "high"
+        },
+        {
+            "name": "Hacking Articles",
+            "url": "https://www.hackingarticles.in/feed/",
             "category": "tools",
             "priority": "high"
         },
