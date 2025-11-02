@@ -42,35 +42,36 @@ class FeedScheduler:
         feeds = get_all_feeds()
         
         total_new = 0
-        total_sent = 0
         
-        # Parse all feeds
+        # Parse all feeds and collect new entries (don't send immediately)
         for feed in feeds:
             try:
                 entries = self.parser.parse_feed(feed)
                 
-                new_entries = []
                 for entry in entries:
                     if self.db.add_news_entry(entry):
-                        new_entries.append(entry)
                         total_new += 1
-                
-                # Send new entries immediately
-                if new_entries:
-                    sent = await self.bot.send_news_to_channel(self.chat_id, new_entries)
-                    total_sent += sent
-                    logger.info(f"Sent {sent} new entries from {feed['name']}")
                 
                 self.db.update_feed_status(feed['name'], feed['url'], success=True)
                 
                 # Small delay between feeds
-                await asyncio.sleep(2)
+                await asyncio.sleep(1)
                 
             except Exception as e:
                 logger.error(f"Error checking feed {feed.get('name')}: {e}")
                 self.db.update_feed_status(feed['name'], feed['url'], success=False, error=str(e))
         
-        logger.info(f"Feed check completed: {total_new} new entries, {total_sent} sent to Telegram")
+        # Now send unsent news in controlled batches
+        total_sent = 0
+        if total_new > 0:
+            # Get all unsent news (limited to avoid spam)
+            unsent = self.db.get_unsent_news(limit=20)  # Max 20 per check cycle
+            if unsent:
+                logger.info(f"Sending {len(unsent)} new entries to Telegram...")
+                sent = await self.bot.send_news_to_channel(self.chat_id, unsent)
+                total_sent = sent
+        
+        logger.info(f"Feed check completed: {total_new} new entries found, {total_sent} sent to Telegram")
         
         return total_new, total_sent
     
@@ -102,11 +103,12 @@ class FeedScheduler:
         
         logger.info(f"Initial load completed: {total_loaded} entries loaded")
         
-        # Send initial batch to Telegram
-        unsent = self.db.get_unsent_news(limit=10)
+        # Send ONLY a small welcome batch (5 entries) to avoid spam
+        # The rest will be sent gradually by scheduled checks
+        unsent = self.db.get_unsent_news(limit=5)
         if unsent:
             sent = await self.bot.send_news_to_channel(self.chat_id, unsent)
-            logger.info(f"Sent {sent} initial news to Telegram")
+            logger.info(f"Sent {sent} initial news to Telegram (welcome batch)")
         
         return total_loaded
     

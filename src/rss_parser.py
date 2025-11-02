@@ -110,6 +110,40 @@ class RSSParser:
             # Extract published date
             published_date = self._parse_date(entry)
             
+            # Extract image/thumbnail
+            image_url = None
+            
+            # Try media:thumbnail
+            if hasattr(entry, 'media_thumbnail') and entry.media_thumbnail:
+                image_url = entry.media_thumbnail[0].get('url')
+            
+            # Try enclosure (common in RSS)
+            elif hasattr(entry, 'enclosures') and entry.enclosures:
+                for enclosure in entry.enclosures:
+                    if enclosure.get('type', '').startswith('image/'):
+                        image_url = enclosure.get('href') or enclosure.get('url')
+                        break
+            
+            # Try media:content
+            elif hasattr(entry, 'media_content') and entry.media_content:
+                for media in entry.media_content:
+                    if media.get('medium') == 'image' or media.get('type', '').startswith('image/'):
+                        image_url = media.get('url')
+                        break
+            
+            # Try extracting from description HTML (last resort)
+            if not image_url and description:
+                try:
+                    soup = BeautifulSoup(entry.get('summary', entry.get('description', '')), 'lxml')
+                    img_tag = soup.find('img')
+                    if img_tag and img_tag.get('src'):
+                        image_url = img_tag['src']
+                        # Ensure it's a full URL
+                        if image_url and not image_url.startswith(('http://', 'https://')):
+                            image_url = None
+                except:
+                    pass
+            
             # Build entry dictionary
             parsed_entry = {
                 'feed_name': feed_config.get('name'),
@@ -119,7 +153,8 @@ class RSSParser:
                 'description': description[:500] if description else '',  # Limit description length
                 'published_date': published_date,
                 'category': feed_config.get('category', 'general'),
-                'priority': feed_config.get('priority', 'medium')
+                'priority': feed_config.get('priority', 'medium'),
+                'image_url': image_url
             }
             
             return parsed_entry

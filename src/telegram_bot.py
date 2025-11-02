@@ -311,6 +311,54 @@ O bot verifica automaticamente os feeds e envia novas notícias!
         
         return message
     
+    def _format_news_caption(self, entry: Dict, include_source: bool = False) -> str:
+        """
+        Format a news entry for photo caption (max 1024 chars)
+        
+        Args:
+            entry: News entry dictionary
+            include_source: Whether to include source information
+        
+        Returns:
+            Formatted caption string
+        """
+        title = html.escape(entry.get('title', 'No Title'))
+        link = entry.get('link', '')
+        description = html.escape(entry.get('description', '')[:200])  # Shorter for captions
+        
+        priority_emoji = {
+            'high': '🔴',
+            'medium': '🟡',
+            'low': '🟢'
+        }.get(entry.get('priority', 'medium'), '🟡')
+        
+        category_emoji = {
+            'news': '📰',
+            'research': '🔬',
+            'exploits': '💣',
+            'malware': '🦠',
+            'threat_intel': '🎯',
+            'tools': '🛠️',
+            'vulnerabilities': '🔓',
+            'advisories': '⚠️',
+            'pentest': '🔐',
+            'crypto': '🔐',
+            'cloud': '☁️'
+        }.get(entry.get('category', 'news'), '📰')
+        
+        caption = f"{priority_emoji} {category_emoji} <b>{title}</b>\n\n"
+        
+        if description:
+            caption += f"{description}...\n\n"
+        
+        if include_source:
+            source = html.escape(entry.get('feed_name', 'Unknown'))
+            caption += f"📡 <i>Fonte: {source}</i>\n"
+        
+        caption += f"🔗 <a href='{link}'>Ler mais</a>"
+        
+        return caption[:1024]  # Telegram caption limit
+    
     async def send_news_to_channel(self, chat_id: str, entries: List[Dict]) -> int:
         """
         Send news entries to a Telegram channel/chat
@@ -325,20 +373,34 @@ O bot verifica automaticamente os feeds e envia novas notícias!
         sent_count = 0
         
         for entry in entries:
-            message = self._format_news_message(entry)
             try:
-                await self.application.bot.send_message(
-                    chat_id=chat_id,
-                    text=message,
-                    parse_mode=ParseMode.HTML,
-                    disable_web_page_preview=True
-                )
+                image_url = entry.get('image_url')
+                
+                if image_url:
+                    # Send with image
+                    caption = self._format_news_caption(entry, include_source=True)
+                    await self.application.bot.send_photo(
+                        chat_id=chat_id,
+                        photo=image_url,
+                        caption=caption,
+                        parse_mode=ParseMode.HTML
+                    )
+                else:
+                    # Send as text
+                    message = self._format_news_message(entry, include_source=True)
+                    await self.application.bot.send_message(
+                        chat_id=chat_id,
+                        text=message,
+                        parse_mode=ParseMode.HTML,
+                        disable_web_page_preview=True
+                    )
+                
                 self.db.mark_as_sent(entry['id'])
                 sent_count += 1
                 
-                # Small delay to avoid rate limiting
+                # Delay to avoid rate limiting (Telegram: 30 msg/sec for groups, 1 msg/sec for users)
                 import asyncio
-                await asyncio.sleep(1)
+                await asyncio.sleep(2)
                 
             except Exception as e:
                 logger.error(f"Error sending news to channel: {e}")

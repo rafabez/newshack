@@ -52,11 +52,20 @@ class Database:
                     published_date TEXT,
                     category TEXT,
                     priority TEXT,
+                    image_url TEXT,
                     fetched_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     sent_to_telegram BOOLEAN DEFAULT 0,
                     sent_at TIMESTAMP
                 )
             """)
+            
+            # Add image_url column if it doesn't exist (migration)
+            try:
+                self.cursor.execute("ALTER TABLE news_entries ADD COLUMN image_url TEXT")
+                logger.info("Added image_url column to news_entries table")
+            except sqlite3.OperationalError:
+                # Column already exists
+                pass
             
             # Feed status table
             self.cursor.execute("""
@@ -97,8 +106,8 @@ class Database:
         try:
             self.cursor.execute("""
                 INSERT INTO news_entries 
-                (feed_name, feed_url, title, link, description, published_date, category, priority)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                (feed_name, feed_url, title, link, description, published_date, category, priority, image_url)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 entry.get('feed_name'),
                 entry.get('feed_url'),
@@ -107,7 +116,8 @@ class Database:
                 entry.get('description'),
                 entry.get('published_date'),
                 entry.get('category'),
-                entry.get('priority')
+                entry.get('priority'),
+                entry.get('image_url')
             ))
             self.conn.commit()
             logger.debug(f"Added news entry: {entry.get('title')[:50]}...")
