@@ -558,40 +558,63 @@ O bot verifica automaticamente os feeds e envia novas notícias!
             chat_id_int = None
         
         for entry in entries:
-            try:
-                image_url = entry.get('image_url')
-                keyboard = self._get_news_keyboard(entry, chat_id_int) if chat_id_int else None
-                
-                if image_url:
-                    # Send with image
-                    caption = self._format_news_caption(entry, include_source=True)
-                    await self.application.bot.send_photo(
-                        chat_id=chat_id,
-                        photo=image_url,
-                        caption=caption,
-                        parse_mode=ParseMode.HTML,
-                        reply_markup=keyboard
-                    )
-                else:
-                    # Send as text
-                    message = self._format_news_message(entry, include_source=True)
-                    await self.application.bot.send_message(
-                        chat_id=chat_id,
-                        text=message,
-                        parse_mode=ParseMode.HTML,
-                        disable_web_page_preview=True,
-                        reply_markup=keyboard
-                    )
-                
-                self.db.mark_as_sent(entry['id'])
-                sent_count += 1
-                
-                # Delay to avoid rate limiting (Telegram: 30 msg/sec for groups, 1 msg/sec for users)
-                import asyncio
-                await asyncio.sleep(2)
-                
-            except Exception as e:
-                logger.error(f"Error sending news to channel: {e}")
+            max_retries = 3
+            retry_delay = 3  # Start with 3 seconds delay between messages
+            
+            for attempt in range(max_retries):
+                try:
+                    image_url = entry.get('image_url')
+                    keyboard = self._get_news_keyboard(entry, chat_id_int) if chat_id_int else None
+                    
+                    if image_url:
+                        # Send with image
+                        caption = self._format_news_caption(entry, include_source=True)
+                        await self.application.bot.send_photo(
+                            chat_id=chat_id,
+                            photo=image_url,
+                            caption=caption,
+                            parse_mode=ParseMode.HTML,
+                            reply_markup=keyboard
+                        )
+                    else:
+                        # Send as text
+                        message = self._format_news_message(entry, include_source=True)
+                        await self.application.bot.send_message(
+                            chat_id=chat_id,
+                            text=message,
+                            parse_mode=ParseMode.HTML,
+                            disable_web_page_preview=True,
+                            reply_markup=keyboard
+                        )
+                    
+                    self.db.mark_as_sent(entry['id'])
+                    sent_count += 1
+                    
+                    # Success - break retry loop
+                    break
+                    
+                except Exception as e:
+                    error_str = str(e)
+                    
+                    # Handle flood control / rate limiting
+                    if "flood control" in error_str.lower() or "retry after" in error_str.lower():
+                        # Extract wait time from error message (e.g., "Retry in 11 seconds")
+                        import re
+                        match = re.search(r'(\d+)\s*second', error_str)
+                        wait_time = int(match.group(1)) if match else 15
+                        
+                        if attempt < max_retries - 1:
+                            logger.warning(f"Flood control hit, waiting {wait_time}s before retry (attempt {attempt + 1}/{max_retries})")
+                            await asyncio.sleep(wait_time)
+                        else:
+                            logger.error(f"Failed to send after {max_retries} attempts due to flood control: {e}")
+                    else:
+                        # Other errors - don't retry
+                        logger.error(f"Error sending news to channel: {e}")
+                        break
+            
+            # Delay between messages to avoid rate limiting (increased from 2s to 3s)
+            await asyncio.sleep(retry_delay)
         
         return sent_count
     

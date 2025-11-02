@@ -52,8 +52,13 @@ class RSSParser:
         
         for attempt in range(self.max_retries):
             try:
-                # Parse the feed
-                feed = feedparser.parse(feed_url, request_headers=dict(self.session.headers))
+                # Fetch feed with timeout to prevent hanging
+                logger.debug(f"Fetching feed: {feed_url} (timeout: {self.timeout}s)")
+                response = self.session.get(feed_url, timeout=self.timeout)
+                response.raise_for_status()
+                
+                # Parse the feed from content
+                feed = feedparser.parse(response.content)
                 
                 if feed.bozo:
                     logger.warning(f"Feed parsing warning for {feed_name}: {feed.bozo_exception}")
@@ -72,6 +77,12 @@ class RSSParser:
                 logger.info(f"Successfully parsed {len(entries)} entries from {feed_name}")
                 return entries
                 
+            except requests.Timeout:
+                logger.error(f"Timeout fetching feed {feed_name} after {self.timeout}s (attempt {attempt + 1}/{self.max_retries})")
+                if attempt < self.max_retries - 1:
+                    time.sleep(2 ** attempt)  # Exponential backoff
+                else:
+                    return []
             except Exception as e:
                 logger.error(f"Error parsing feed {feed_name} (attempt {attempt + 1}/{self.max_retries}): {e}")
                 if attempt < self.max_retries - 1:
