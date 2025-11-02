@@ -72,6 +72,22 @@ class TelegramBot:
         except Exception as e:
             logger.error(f"Error tracking user: {e}")
     
+    def _is_admin(self, chat_id: int) -> bool:
+        """Check if user is admin"""
+        admin_chat_id = os.getenv('TELEGRAM_CHAT_ID')
+        return admin_chat_id and str(chat_id) == admin_chat_id
+    
+    def _get_news_keyboard(self, entry: Dict, chat_id: int) -> Optional[InlineKeyboardMarkup]:
+        """Get inline keyboard for news entry (with broadcast button for admin)"""
+        if not self._is_admin(chat_id):
+            return None
+        
+        # Create broadcast button with news entry ID
+        keyboard = [
+            [InlineKeyboardButton("📢 Broadcast para Todos", callback_data=f"broadcast_{entry.get('id')}")]
+        ]
+        return InlineKeyboardMarkup(keyboard)
+    
     async def start_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Handle /start command"""
         self._track_user(update, "start")
@@ -136,8 +152,14 @@ O bot verifica automaticamente os feeds e envia novas notícias!
         
         for entry in news:
             message = self._format_news_message(entry)
+            keyboard = self._get_news_keyboard(entry, update.effective_chat.id)
             try:
-                await update.message.reply_text(message, parse_mode=ParseMode.HTML, disable_web_page_preview=True)
+                await update.message.reply_text(
+                    message, 
+                    parse_mode=ParseMode.HTML, 
+                    disable_web_page_preview=True,
+                    reply_markup=keyboard
+                )
                 self.db.mark_as_sent(entry['id'])
             except Exception as e:
                 logger.error(f"Error sending news: {e}")
@@ -155,10 +177,16 @@ O bot verifica automaticamente os feeds e envia novas notícias!
         
         await update.message.reply_text(f"📰 Últimas 24 horas - {len(news)} notícias:\n")
         
-        for entry in news[:10]:  # Limit to 10 to avoid spam
+        for entry in news:
             message = self._format_news_message(entry, include_source=True)
+            keyboard = self._get_news_keyboard(entry, update.effective_chat.id)
             try:
-                await update.message.reply_text(message, parse_mode=ParseMode.HTML, disable_web_page_preview=True)
+                await update.message.reply_text(
+                    message, 
+                    parse_mode=ParseMode.HTML, 
+                    disable_web_page_preview=True,
+                    reply_markup=keyboard
+                )
             except Exception as e:
                 logger.error(f"Error sending recent news: {e}")
     
@@ -256,15 +284,101 @@ O bot verifica automaticamente os feeds e envia novas notícias!
         
         for entry in news[:5]:  # Limit to avoid spam
             message = self._format_news_message(entry, include_source=True)
+            keyboard = self._get_news_keyboard(entry, query.message.chat_id)
             try:
                 await context.bot.send_message(
                     chat_id=query.message.chat_id,
                     text=message,
                     parse_mode=ParseMode.HTML,
-                    disable_web_page_preview=True
+                    disable_web_page_preview=True,
+                    reply_markup=keyboard
                 )
             except Exception as e:
                 logger.error(f"Error sending category news: {e}")
+    
+    async def broadcast_callback(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle broadcast button callback (admin only)"""
+        query = update.callback_query
+        
+        # Check if admin
+        if not self._is_admin(query.message.chat_id):
+            await query.answer("⛔ Apenas o administrador pode fazer broadcast.", show_alert=True)
+            return
+        
+        await query.answer()
+        
+        # Extract news ID from callback data
+        try:
+            news_id = int(query.data.replace("broadcast_", ""))
+        except:
+            await query.answer("❌ Erro ao processar ID da notícia.", show_alert=True)
+            return
+        
+        # Get news entry from database
+        try:
+            self.db.cursor.execute("SELECT * FROM news_entries WHERE id = ?", (news_id,))
+            row = self.db.cursor.fetchone()
+            if not row:
+                await query.answer("❌ Notícia não encontrada.", show_alert=True)
+                return
+            entry = dict(row)
+        except Exception as e:
+            logger.error(f"Error getting news for broadcast: {e}")
+            await query.answer("❌ Erro ao buscar notícia.", show_alert=True)
+            return
+        
+        # Get all active users
+        users = self.db.get_all_users(days=30)
+        
+        await query.edit_message_text(
+            f"📤 Enviando broadcast para {len(users)} usuários...\n\n"
+            f"📰 {entry.get('title', '')[:50]}..."
+        )
+        
+        # Broadcast to all users
+        sent = 0
+        failed = 0
+        
+        message = self._format_news_message(entry, include_source=True)
+        broadcast_message = f"📢 <b>Notícia Importante:</b>\n\n{message}"
+        
+        for user in users:
+            try:
+                # Skip admin (already has it)
+                if self._is_admin(user['chat_id']):
+                    continue
+                
+                image_url = entry.get('image_url')
+                if image_url:
+                    caption = self._format_news_caption(entry, include_source=True)
+                    await self.application.bot.send_photo(
+                        chat_id=user['chat_id'],
+                        photo=image_url,
+                        caption=f"📢 <b>Notícia Importante:</b>\n\n{caption}",
+                        parse_mode=ParseMode.HTML
+                    )
+                else:
+                    await self.application.bot.send_message(
+                        chat_id=user['chat_id'],
+                        text=broadcast_message,
+                        parse_mode=ParseMode.HTML,
+                        disable_web_page_preview=True
+                    )
+                sent += 1
+                await asyncio.sleep(0.5)  # Rate limiting
+            except Exception as e:
+                logger.error(f"Error broadcasting to {user['chat_id']}: {e}")
+                failed += 1
+        
+        # Send confirmation
+        await context.bot.send_message(
+            chat_id=query.message.chat_id,
+            text=f"✅ <b>Broadcast Concluído!</b>\n\n"
+                 f"📤 Enviado: {sent}\n"
+                 f"❌ Falhou: {failed}\n"
+                 f"📰 Notícia: {entry.get('title', '')[:80]}...",
+            parse_mode=ParseMode.HTML
+        )
     
     async def search_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Handle /search command - search news"""
@@ -292,8 +406,14 @@ O bot verifica automaticamente os feeds e envia novas notícias!
         
         for entry in results[:8]:
             message = self._format_news_message(entry, include_source=True)
+            keyboard = self._get_news_keyboard(entry, update.effective_chat.id)
             try:
-                await update.message.reply_text(message, parse_mode=ParseMode.HTML, disable_web_page_preview=True)
+                await update.message.reply_text(
+                    message, 
+                    parse_mode=ParseMode.HTML, 
+                    disable_web_page_preview=True,
+                    reply_markup=keyboard
+                )
             except Exception as e:
                 logger.error(f"Error sending search result: {e}")
     
@@ -641,6 +761,7 @@ O bot verifica automaticamente os feeds e envia novas notícias!
         self.application.add_handler(CommandHandler("search", self.search_command))
         self.application.add_handler(CommandHandler("update", self.update_command))
         self.application.add_handler(CallbackQueryHandler(self.category_callback, pattern="^cat_"))
+        self.application.add_handler(CallbackQueryHandler(self.broadcast_callback, pattern="^broadcast_"))
         
         # Admin commands
         self.application.add_handler(CommandHandler("adminstats", self.admin_stats_command))
