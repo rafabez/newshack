@@ -187,6 +187,18 @@ RSS_FEEDS = {
             "priority": "high"
         },
         {
+            "name": "SecTools.org",
+            "url": "https://sectools.org/index.rss",
+            "category": "tools",
+            "priority": "medium"
+        },
+        {
+            "name": "GitHub Security Lab",
+            "url": "https://securitylab.github.com/research/feed.xml",
+            "category": "tools",
+            "priority": "high"
+        },
+        {
             "name": "Pentest Geek",
             "url": "https://www.pentestgeek.com/feed/",
             "category": "pentest",
@@ -303,6 +315,18 @@ RSS_FEEDS = {
         {
             "name": "Avast Decoded",
             "url": "https://decoded.avast.io/feed/",
+            "category": "malware",
+            "priority": "medium"
+        },
+        {
+            "name": "The DFIR Report",
+            "url": "https://thedfirreport.com/feed/",
+            "category": "malware",
+            "priority": "high"
+        },
+        {
+            "name": "Hybrid Analysis Blog",
+            "url": "https://www.hybrid-analysis.com/feed",
             "category": "malware",
             "priority": "medium"
         },

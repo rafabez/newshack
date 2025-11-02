@@ -187,8 +187,9 @@ O bot verifica automaticamente os feeds e envia novas notícias!
         if category == "all":
             news = self.db.get_recent_news(hours=48, limit=20)
         else:
-            # Filter by category
-            all_news = self.db.get_recent_news(hours=48, limit=100)
+            # Filter by category - use 7 days for less frequent categories
+            hours = 168 if category in ['tools', 'malware', 'cloud', 'crypto'] else 48
+            all_news = self.db.get_recent_news(hours=hours, limit=100)
             news = [n for n in all_news if n.get('category') == category][:10]
         
         if not news:
