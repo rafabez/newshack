@@ -101,6 +101,19 @@ Seu agregador de notícias de hacking e cibersegurança.
 
 O bot verifica automaticamente os feeds e envia novas notícias!
 """
+        
+        # Add admin commands if user is admin
+        admin_chat_id = os.getenv('TELEGRAM_CHAT_ID')
+        if admin_chat_id and str(update.effective_chat.id) == admin_chat_id:
+            welcome_message += """
+<b>👑 Comandos Admin:</b>
+
+🔸 /adminstats - Estatísticas detalhadas (usuários, uso)
+🔸 /users - Listar todos os usuários do bot
+🔸 /broadcast [msg] - Enviar mensagem para todos
+🔸 /feedstatus - Status detalhado dos feeds RSS
+"""
+        
         await update.message.reply_text(welcome_message, parse_mode=ParseMode.HTML)
     
     async def help_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
