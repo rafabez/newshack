@@ -250,30 +250,85 @@ O bot verifica automaticamente os feeds e envia novas notícias!
         await update.message.reply_text(message, parse_mode=ParseMode.HTML)
     
     async def categories_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Handle /categories command - show categories"""
+        """Handle /categories command - show categories with news count"""
         self._track_user(update, "categories")
-        keyboard = [
-            [InlineKeyboardButton("🔥 News", callback_data="cat_news"),
-             InlineKeyboardButton("🔬 Research", callback_data="cat_research")],
-            [InlineKeyboardButton("💣 Exploits", callback_data="cat_exploits"),
-             InlineKeyboardButton("🛆 Vulnerabilities", callback_data="cat_vulnerabilities")],
-            [InlineKeyboardButton("🦠 Malware", callback_data="cat_malware"),
-             InlineKeyboardButton("🎯 Threat Intel", callback_data="cat_threat_intel")],
-            [InlineKeyboardButton("🛠️ Tools", callback_data="cat_tools"),
-             InlineKeyboardButton("📖 Tutorials", callback_data="cat_tutorials")],
-            [InlineKeyboardButton("🎯 Pentest", callback_data="cat_pentest"),
-             InlineKeyboardButton("⚠️ Advisories", callback_data="cat_advisories")],
-            [InlineKeyboardButton("📊 Analysis", callback_data="cat_analysis"),
-             InlineKeyboardButton("☁️ Cloud", callback_data="cat_cloud")],
-            [InlineKeyboardButton("🔐 Crypto", callback_data="cat_crypto"),
-             InlineKeyboardButton("👥 Community", callback_data="cat_community")],
-            [InlineKeyboardButton("📚 All Categories", callback_data="cat_all")]
-        ]
+        
+        # Get category statistics from database
+        stats = self.db.get_stats()
+        categories_count = stats.get('by_category', {})
+        
+        # Category emoji mapping
+        category_emojis = {
+            'news': '🔥',
+            'research': '🔬',
+            'exploits': '💣',
+            'vulnerabilities': '🛆',
+            'malware': '🦠',
+            'threat_intel': '🎯',
+            'tools': '🛠️',
+            'tutorials': '📖',
+            'pentest': '🎯',
+            'advisories': '⚠️',
+            'analysis': '📊',
+            'cloud': '☁️',
+            'crypto': '🔐',
+            'community': '👥'
+        }
+        
+        # Category name mapping (for display)
+        category_names = {
+            'news': 'News',
+            'research': 'Research',
+            'exploits': 'Exploits',
+            'vulnerabilities': 'Vulnerabilities',
+            'malware': 'Malware',
+            'threat_intel': 'Threat Intel',
+            'tools': 'Tools',
+            'tutorials': 'Tutorials',
+            'pentest': 'Pentest',
+            'advisories': 'Advisories',
+            'analysis': 'Analysis',
+            'cloud': 'Cloud',
+            'crypto': 'Crypto',
+            'community': 'Community'
+        }
+        
+        # Build keyboard with only categories that have news
+        # Sort by count (descending)
+        sorted_categories = sorted(categories_count.items(), key=lambda x: x[1], reverse=True)
+        
+        keyboard = []
+        row = []
+        for category, count in sorted_categories:
+            if count > 0:  # Only show categories with news
+                emoji = category_emojis.get(category, '📰')
+                name = category_names.get(category, category.capitalize())
+                button_text = f"{emoji} {name} ({count})"
+                row.append(InlineKeyboardButton(button_text, callback_data=f"cat_{category}"))
+                
+                # Create rows of 2 buttons
+                if len(row) == 2:
+                    keyboard.append(row)
+                    row = []
+        
+        # Add remaining button if odd number
+        if row:
+            keyboard.append(row)
+        
+        # Add "All Categories" button at the end
+        total_news = sum(categories_count.values())
+        keyboard.append([InlineKeyboardButton(f"📚 Todas ({total_news})", callback_data="cat_all")])
+        
+        if not keyboard or len(keyboard) == 1:  # Only "All" button
+            await update.message.reply_text("❌ Nenhuma notícia disponível no momento.")
+            return
         
         reply_markup = InlineKeyboardMarkup(keyboard)
         await update.message.reply_text(
-            "📂 Selecione uma categoria:",
-            reply_markup=reply_markup
+            "📂 <b>Selecione uma categoria:</b>\n\n"
+            "<i>Mostrando apenas categorias com notícias disponíveis</i>",
+            reply_markup=reply_markup,
+            parse_mode=ParseMode.HTML
         )
     
     async def category_callback(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
