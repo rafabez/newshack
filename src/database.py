@@ -81,6 +81,30 @@ class Database:
                 )
             """)
             
+            # Users table (for tracking bot users)
+            self.cursor.execute("""
+                CREATE TABLE IF NOT EXISTS users (
+                    chat_id INTEGER PRIMARY KEY,
+                    username TEXT,
+                    first_name TEXT,
+                    last_name TEXT,
+                    first_seen TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    last_seen TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    is_active BOOLEAN DEFAULT 1
+                )
+            """)
+            
+            # Command usage table (for stats)
+            self.cursor.execute("""
+                CREATE TABLE IF NOT EXISTS command_usage (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    chat_id INTEGER,
+                    command TEXT NOT NULL,
+                    executed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (chat_id) REFERENCES users(chat_id)
+                )
+            """)
+            
             # Create indexes for better performance
             self.cursor.execute("""
                 CREATE INDEX IF NOT EXISTS idx_link ON news_entries(link)
@@ -254,6 +278,118 @@ class Database:
             return [dict(row) for row in rows]
         except Exception as e:
             logger.error(f"Error getting feed status: {e}")
+            return []
+    
+    def register_user(self, chat_id: int, username: str = None, first_name: str = None, last_name: str = None):
+        """Register or update a user"""
+        try:
+            self.cursor.execute("""
+                INSERT INTO users (chat_id, username, first_name, last_name, first_seen, last_seen)
+                VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                ON CONFLICT(chat_id) DO UPDATE SET
+                    username = ?,
+                    first_name = ?,
+                    last_name = ?,
+                    last_seen = CURRENT_TIMESTAMP
+            """, (chat_id, username, first_name, last_name, username, first_name, last_name))
+            self.conn.commit()
+        except Exception as e:
+            logger.error(f"Error registering user: {e}")
+    
+    def log_command(self, chat_id: int, command: str):
+        """Log a command execution"""
+        try:
+            self.cursor.execute("""
+                INSERT INTO command_usage (chat_id, command)
+                VALUES (?, ?)
+            """, (chat_id, command))
+            self.conn.commit()
+        except Exception as e:
+            logger.error(f"Error logging command: {e}")
+    
+    def get_user_stats(self) -> Dict:
+        """Get user statistics"""
+        try:
+            stats = {}
+            
+            # Total users
+            self.cursor.execute("SELECT COUNT(*) FROM users")
+            stats['total_users'] = self.cursor.fetchone()[0]
+            
+            # Active users (7 days)
+            self.cursor.execute("""
+                SELECT COUNT(*) FROM users 
+                WHERE last_seen >= datetime('now', '-7 days')
+            """)
+            stats['active_users_7d'] = self.cursor.fetchone()[0]
+            
+            # New users today
+            self.cursor.execute("""
+                SELECT COUNT(*) FROM users 
+                WHERE date(first_seen) = date('now')
+            """)
+            stats['new_users_today'] = self.cursor.fetchone()[0]
+            
+            # Total commands
+            self.cursor.execute("SELECT COUNT(*) FROM command_usage")
+            stats['total_commands'] = self.cursor.fetchone()[0]
+            
+            # Most used command
+            self.cursor.execute("""
+                SELECT command, COUNT(*) as count 
+                FROM command_usage 
+                GROUP BY command 
+                ORDER BY count DESC 
+                LIMIT 1
+            """)
+            result = self.cursor.fetchone()
+            if result:
+                stats['most_used_command'] = result[0]
+                stats['most_used_count'] = result[1]
+            else:
+                stats['most_used_command'] = None
+                stats['most_used_count'] = 0
+            
+            # Last command time
+            self.cursor.execute("""
+                SELECT MAX(executed_at) FROM command_usage
+            """)
+            stats['last_command_at'] = self.cursor.fetchone()[0]
+            
+            # News stats
+            self.cursor.execute("SELECT COUNT(*) FROM news_entries")
+            stats['total_news'] = self.cursor.fetchone()[0]
+            
+            self.cursor.execute("""
+                SELECT COUNT(*) FROM news_entries 
+                WHERE date(fetched_at) = date('now')
+            """)
+            stats['news_today'] = self.cursor.fetchone()[0]
+            
+            return stats
+        except Exception as e:
+            logger.error(f"Error getting user stats: {e}")
+            return {}
+    
+    def get_all_users(self, days: int = None) -> List[Dict]:
+        """Get all users, optionally filtered by last activity"""
+        try:
+            if days:
+                self.cursor.execute("""
+                    SELECT * FROM users 
+                    WHERE last_seen >= datetime('now', '-' || ? || ' days')
+                    ORDER BY last_seen DESC
+                """, (days,))
+            else:
+                self.cursor.execute("""
+                    SELECT * FROM users 
+                    ORDER BY last_seen DESC
+                """)
+            
+            rows = self.cursor.fetchall()
+            return [dict(row) for row in rows]
+        except Exception as e:
+            logger.error(f"Error getting users: {e}")
             return []
     
     def close(self):

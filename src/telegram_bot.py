@@ -3,7 +3,11 @@ Telegram Bot module for News Hack Bot
 Handles all Telegram interactions and message formatting
 """
 import logging
+import os
+import asyncio
 from typing import List, Dict, Optional
+from functools import wraps
+from datetime import datetime
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
     Application,
@@ -17,6 +21,23 @@ from telegram.constants import ParseMode
 import html
 
 logger = logging.getLogger(__name__)
+
+
+def admin_only(func):
+    """Decorator to restrict commands to admin only"""
+    @wraps(func)
+    async def wrapper(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        admin_chat_id = os.getenv('TELEGRAM_CHAT_ID')
+        if not admin_chat_id:
+            return
+        
+        user_chat_id = str(update.effective_chat.id)
+        if user_chat_id != admin_chat_id:
+            await update.message.reply_text("⛔ Este comando é restrito ao administrador.")
+            return
+        
+        return await func(self, update, context)
+    return wrapper
 
 
 class TelegramBot:
@@ -36,8 +57,24 @@ class TelegramBot:
         self.parser = rss_parser
         self.application = None
     
+    def _track_user(self, update: Update, command: str):
+        """Track user activity"""
+        try:
+            user = update.effective_user
+            chat_id = update.effective_chat.id
+            self.db.register_user(
+                chat_id=chat_id,
+                username=user.username,
+                first_name=user.first_name,
+                last_name=user.last_name
+            )
+            self.db.log_command(chat_id=chat_id, command=command)
+        except Exception as e:
+            logger.error(f"Error tracking user: {e}")
+    
     async def start_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Handle /start command"""
+        self._track_user(update, "start")
         welcome_message = """
 🔐 <b>Bem-vindo ao News Hack Bot!</b>
 
@@ -68,10 +105,12 @@ O bot verifica automaticamente os feeds e envia novas notícias!
     
     async def help_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Handle /help command"""
+        self._track_user(update, "help")
         await self.start_command(update, context)
     
     async def news_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Handle /news command - show unsent news"""
+        self._track_user(update, "news")
         await update.message.reply_text("🔍 Buscando notícias não enviadas...")
         
         news = self.db.get_unsent_news(limit=10)
@@ -92,6 +131,7 @@ O bot verifica automaticamente os feeds e envia novas notícias!
     
     async def recent_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Handle /recent command - show recent news"""
+        self._track_user(update, "recent")
         await update.message.reply_text("🔍 Buscando notícias recentes...")
         
         news = self.db.get_recent_news(hours=24, limit=15)
@@ -111,6 +151,7 @@ O bot verifica automaticamente os feeds e envia novas notícias!
     
     async def stats_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Handle /stats command - show statistics"""
+        self._track_user(update, "stats")
         stats = self.db.get_stats()
         
         stats_message = f"""
@@ -133,6 +174,7 @@ O bot verifica automaticamente os feeds e envia novas notícias!
     
     async def feeds_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Handle /feeds command - show feed status"""
+        self._track_user(update, "feeds")
         feed_status = self.db.get_feed_status()
         
         if not feed_status:
@@ -160,6 +202,7 @@ O bot verifica automaticamente os feeds e envia novas notícias!
     
     async def categories_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Handle /categories command - show categories"""
+        self._track_user(update, "categories")
         keyboard = [
             [InlineKeyboardButton("🔥 News", callback_data="cat_news"),
              InlineKeyboardButton("🔬 Research", callback_data="cat_research")],
@@ -212,6 +255,7 @@ O bot verifica automaticamente os feeds e envia novas notícias!
     
     async def search_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Handle /search command - search news"""
+        self._track_user(update, "search")
         if not context.args:
             await update.message.reply_text("❌ Use: /search [termo de busca]")
             return
@@ -242,6 +286,7 @@ O bot verifica automaticamente os feeds e envia novas notícias!
     
     async def update_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Handle /update command - force feed update"""
+        self._track_user(update, "update")
         await update.message.reply_text("🔄 Iniciando atualização dos feeds RSS...")
         
         # This will be called by the scheduler
@@ -408,6 +453,169 @@ O bot verifica automaticamente os feeds e envia novas notícias!
         
         return sent_count
     
+    @admin_only
+    async def admin_stats_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Admin command - detailed statistics"""
+        stats = self.db.get_user_stats()
+        
+        # Format time ago
+        last_command = stats.get('last_command_at', 'Nunca')
+        if last_command and last_command != 'Nunca':
+            try:
+                last_dt = datetime.fromisoformat(last_command)
+                delta = datetime.now() - last_dt
+                if delta.seconds < 60:
+                    last_command = f"há {delta.seconds}s"
+                elif delta.seconds < 3600:
+                    last_command = f"há {delta.seconds // 60}m"
+                else:
+                    last_command = f"há {delta.seconds // 3600}h"
+            except:
+                pass
+        
+        message = f"""
+📊 <b>Estatísticas Admin</b>
+
+👥 <b>Usuários:</b>
+• Total: {stats.get('total_users', 0)} usuários
+• Ativos (7 dias): {stats.get('active_users_7d', 0)} usuários
+• Novos hoje: {stats.get('new_users_today', 0)} usuários
+
+💬 <b>Uso:</b>
+• Comandos executados: {stats.get('total_commands', 0)}
+• Comando mais usado: {stats.get('most_used_command', 'N/A')} ({stats.get('most_used_count', 0)}x)
+• Último uso: {last_command}
+
+📰 <b>Notícias:</b>
+• No banco: {stats.get('total_news', 0)} notícias
+• Adicionadas hoje: {stats.get('news_today', 0)} notícias
+"""
+        
+        await update.message.reply_text(message, parse_mode=ParseMode.HTML)
+    
+    @admin_only
+    async def admin_users_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Admin command - list users"""
+        users = self.db.get_all_users(days=30)
+        
+        if not users:
+            await update.message.reply_text("❌ Nenhum usuário registrado.")
+            return
+        
+        message = f"👥 <b>Usuários do Bot ({len(users)} total)</b>\n\n"
+        
+        for user in users[:20]:  # Limit to 20
+            username = f"@{user['username']}" if user.get('username') else f"ID:{user['chat_id']}"
+            name = user.get('first_name', 'Anônimo')
+            
+            # Calculate time ago
+            try:
+                last_seen = datetime.fromisoformat(user['last_seen'])
+                delta = datetime.now() - last_seen
+                if delta.days > 0:
+                    time_ago = f"{delta.days}d atrás"
+                elif delta.seconds >= 3600:
+                    time_ago = f"{delta.seconds // 3600}h atrás"
+                elif delta.seconds >= 60:
+                    time_ago = f"{delta.seconds // 60}m atrás"
+                else:
+                    time_ago = f"{delta.seconds}s atrás"
+            except:
+                time_ago = "?"
+            
+            message += f"• {name} ({username}) - {time_ago}\n"
+        
+        if len(users) > 20:
+            message += f"\n... e mais {len(users) - 20} usuários"
+        
+        await update.message.reply_text(message, parse_mode=ParseMode.HTML)
+    
+    @admin_only
+    async def admin_broadcast_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Admin command - broadcast message to all users"""
+        if not context.args:
+            await update.message.reply_text(
+                "📢 <b>Uso:</b> /broadcast sua mensagem aqui\n\n"
+                "Enviará a mensagem para todos os usuários ativos (últimos 30 dias).",
+                parse_mode=ParseMode.HTML
+            )
+            return
+        
+        message_text = " ".join(context.args)
+        users = self.db.get_all_users(days=30)
+        
+        await update.message.reply_text(f"📤 Enviando para {len(users)} usuários...")
+        
+        sent = 0
+        failed = 0
+        
+        for user in users:
+            try:
+                await self.application.bot.send_message(
+                    chat_id=user['chat_id'],
+                    text=f"📢 <b>Mensagem do Admin:</b>\n\n{message_text}",
+                    parse_mode=ParseMode.HTML
+                )
+                sent += 1
+                await asyncio.sleep(0.5)  # Rate limiting
+            except Exception as e:
+                logger.error(f"Error broadcasting to {user['chat_id']}: {e}")
+                failed += 1
+        
+        await update.message.reply_text(
+            f"✅ Broadcast concluído!\n\n"
+            f"Enviado: {sent}\n"
+            f"Falhou: {failed}"
+        )
+    
+    @admin_only
+    async def admin_feedstatus_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Admin command - detailed feed status"""
+        feed_status = self.db.get_feed_status()
+        
+        if not feed_status:
+            await update.message.reply_text("❌ Nenhum feed verificado ainda.")
+            return
+        
+        active_feeds = [f for f in feed_status if f['error_count'] == 0]
+        error_feeds = [f for f in feed_status if f['error_count'] > 0]
+        
+        # Count news per feed
+        from collections import defaultdict
+        news_count = defaultdict(int)
+        try:
+            self.db.cursor.execute("""
+                SELECT feed_name, COUNT(*) as count 
+                FROM news_entries 
+                GROUP BY feed_name 
+                ORDER BY count DESC 
+                LIMIT 10
+            """)
+            for row in self.db.cursor.fetchall():
+                news_count[row[0]] = row[1]
+        except:
+            pass
+        
+        message = f"""
+📡 <b>Status Detalhado dos Feeds</b>
+
+✅ <b>Funcionando:</b> {len(active_feeds)} feeds
+❌ <b>Com Erro:</b> {len(error_feeds)} feeds
+
+🔝 <b>Top feeds (por notícias):</b>
+"""
+        
+        for feed_name, count in sorted(news_count.items(), key=lambda x: x[1], reverse=True)[:5]:
+            message += f"• {feed_name}: {count} notícias\n"
+        
+        if error_feeds:
+            message += f"\n❌ <b>Com problemas:</b>\n"
+            for feed in error_feeds[:5]:
+                error_msg = feed.get('last_error', 'Unknown')[:50]
+                message += f"• {feed['feed_name']}\n  Erro: {error_msg}\n"
+        
+        await update.message.reply_text(message, parse_mode=ParseMode.HTML)
+    
     def setup_handlers(self):
         """Setup command and callback handlers"""
         self.application.add_handler(CommandHandler("start", self.start_command))
@@ -420,6 +628,12 @@ O bot verifica automaticamente os feeds e envia novas notícias!
         self.application.add_handler(CommandHandler("search", self.search_command))
         self.application.add_handler(CommandHandler("update", self.update_command))
         self.application.add_handler(CallbackQueryHandler(self.category_callback, pattern="^cat_"))
+        
+        # Admin commands
+        self.application.add_handler(CommandHandler("adminstats", self.admin_stats_command))
+        self.application.add_handler(CommandHandler("users", self.admin_users_command))
+        self.application.add_handler(CommandHandler("broadcast", self.admin_broadcast_command))
+        self.application.add_handler(CommandHandler("feedstatus", self.admin_feedstatus_command))
         
         logger.info("Bot handlers configured successfully")
     
