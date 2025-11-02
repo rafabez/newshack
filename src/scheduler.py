@@ -84,8 +84,8 @@ class FeedScheduler:
         
         total_loaded = 0
         
-        # Parse high priority feeds
-        for feed in feeds[:15]:  # Limit initial load
+        # Parse high priority feeds (increased to include all tools/malware feeds)
+        for feed in feeds[:35]:  # Limit initial load to top 35 high priority feeds
             try:
                 entries = self.parser.parse_feed(feed)
                 
