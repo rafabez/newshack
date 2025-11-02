@@ -7,6 +7,7 @@ import asyncio
 import logging
 import os
 import sys
+import signal
 from pathlib import Path
 from dotenv import load_dotenv
 
@@ -33,6 +34,9 @@ logging.basicConfig(
 )
 
 logger = logging.getLogger(__name__)
+
+# Global flag for graceful shutdown
+shutdown_event = asyncio.Event()
 
 
 async def main():
@@ -86,6 +90,14 @@ async def main():
         logger.info("News Hack Bot is running!")
         logger.info("=" * 60)
         
+        # Setup signal handlers for graceful shutdown
+        def signal_handler(signum, frame):
+            logger.info(f"Received signal {signum}, initiating shutdown...")
+            shutdown_event.set()
+        
+        signal.signal(signal.SIGTERM, signal_handler)
+        signal.signal(signal.SIGINT, signal_handler)
+        
         # Start polling and scheduler
         tasks = []
         
@@ -96,8 +108,25 @@ async def main():
         if scheduler:
             tasks.append(asyncio.create_task(scheduler.run()))
         
-        # Wait for all tasks
-        await asyncio.gather(*tasks)
+        # Wait for shutdown signal
+        await shutdown_event.wait()
+        
+        logger.info("Shutdown signal received, stopping tasks...")
+        
+        # Stop polling
+        await bot.application.updater.stop()
+        
+        # Stop scheduler
+        if scheduler:
+            scheduler.stop()
+        
+        # Cancel all tasks
+        for task in tasks:
+            if not task.done():
+                task.cancel()
+        
+        # Wait for tasks to complete
+        await asyncio.gather(*tasks, return_exceptions=True)
         
     except KeyboardInterrupt:
         logger.info("Received interrupt signal, shutting down...")
@@ -106,10 +135,18 @@ async def main():
     finally:
         # Cleanup
         logger.info("Cleaning up...")
-        if bot:
-            await bot.shutdown()
-        if db:
-            db.close()
+        try:
+            if 'bot' in locals() and bot:
+                await bot.shutdown()
+        except Exception as e:
+            logger.warning(f"Error during bot shutdown: {e}")
+        
+        try:
+            if 'db' in locals() and db:
+                db.close()
+        except Exception as e:
+            logger.warning(f"Error closing database: {e}")
+        
         logger.info("News Hack Bot stopped")
 
 
