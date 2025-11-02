@@ -205,6 +205,24 @@ RSS_FEEDS = {
             "priority": "high"
         },
         {
+            "name": "Social-Engineer.org",
+            "url": "https://www.social-engineer.org/feed/",
+            "category": "tools",
+            "priority": "medium"
+        },
+        {
+            "name": "ZSec UK Blog",
+            "url": "https://blog.zsec.uk/feed/",
+            "category": "tools",
+            "priority": "medium"
+        },
+        {
+            "name": "Hakin9",
+            "url": "https://hakin9.org/feed/",
+            "category": "tools",
+            "priority": "medium"
+        },
+        {
             "name": "Pentest Geek",
             "url": "https://www.pentestgeek.com/feed/",
             "category": "pentest",
