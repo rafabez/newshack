@@ -166,7 +166,7 @@ RSS_FEEDS = {
             "name": "Darknet - Hacking Tools",
             "url": "https://www.darknet.org.uk/feed/",
             "category": "tools",
-            "priority": "medium"
+            "priority": "high"
         },
         {
             "name": "Hacker Combat",
@@ -190,7 +190,7 @@ RSS_FEEDS = {
             "name": "PentestMonkey",
             "url": "http://pentestmonkey.net/feed",
             "category": "tools",
-            "priority": "medium"
+            "priority": "high"
         },
         {
             "name": "GitHub Security Lab",
@@ -334,13 +334,13 @@ RSS_FEEDS = {
             "name": "ANY.RUN Blog",
             "url": "https://any.run/cybersecurity-blog/feed/",
             "category": "malware",
-            "priority": "medium"
+            "priority": "high"
         },
         {
             "name": "Avast Decoded",
             "url": "https://decoded.avast.io/feed/",
             "category": "malware",
-            "priority": "medium"
+            "priority": "high"
         },
         {
             "name": "The DFIR Report",
@@ -352,7 +352,7 @@ RSS_FEEDS = {
             "name": "Hybrid Analysis Blog",
             "url": "https://www.hybrid-analysis.com/feed",
             "category": "malware",
-            "priority": "medium"
+            "priority": "high"
         },
     ],
     
