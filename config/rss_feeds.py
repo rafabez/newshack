@@ -181,14 +181,14 @@ RSS_FEEDS = {
             "priority": "high"
         },
         {
-            "name": "Kitploit - Hacking Tools",
-            "url": "https://www.kitploit.com/feeds/posts/default",
+            "name": "SecJuice",
+            "url": "https://www.secjuice.com/feed/",
             "category": "tools",
             "priority": "high"
         },
         {
-            "name": "SecTools.org",
-            "url": "https://sectools.org/index.rss",
+            "name": "PentestMonkey",
+            "url": "http://pentestmonkey.net/feed",
             "category": "tools",
             "priority": "medium"
         },
@@ -199,9 +199,9 @@ RSS_FEEDS = {
             "priority": "high"
         },
         {
-            "name": "Hacking Articles",
-            "url": "https://www.hackingarticles.in/feed/",
-            "category": "tools",
+            "name": "InfoSec Write-ups",
+            "url": "https://infosecwriteups.com/feed",
+            "category": "tutorials",
             "priority": "high"
         },
         {
