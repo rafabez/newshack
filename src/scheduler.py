@@ -112,13 +112,6 @@ class FeedScheduler:
         
         return total_loaded
     
-    def schedule_jobs(self):
-        """Setup scheduled jobs"""
-        schedule.every(self.check_interval).minutes.do(
-            lambda: asyncio.create_task(self.check_feeds())
-        )
-        logger.info(f"Scheduled feed checks every {self.check_interval} minutes")
-    
     async def run(self):
         """Run the scheduler loop"""
         self.is_running = True
@@ -127,13 +120,22 @@ class FeedScheduler:
         # Initial load
         await self.initial_load()
         
-        # Setup schedule
-        self.schedule_jobs()
+        logger.info(f"Scheduled feed checks every {self.check_interval} minutes")
         
-        # Run scheduler loop
+        # Run scheduler loop with asyncio (more reliable than schedule library)
         while self.is_running:
-            schedule.run_pending()
-            await asyncio.sleep(60)  # Check every minute
+            try:
+                # Wait for the check interval
+                await asyncio.sleep(self.check_interval * 60)
+                
+                # Run feed check
+                if self.is_running:
+                    await self.check_feeds()
+                    
+            except Exception as e:
+                logger.error(f"Error in scheduler loop: {e}", exc_info=True)
+                # Continue running even if there's an error
+                await asyncio.sleep(60)  # Wait 1 minute before retry
     
     def stop(self):
         """Stop the scheduler"""
