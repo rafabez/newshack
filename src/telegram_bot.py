@@ -551,9 +551,16 @@ O bot verifica automaticamente os feeds e envia novas notícias!
         """
         sent_count = 0
         
+        # Get keyboard for admin (if chat_id is admin)
+        try:
+            chat_id_int = int(chat_id)
+        except:
+            chat_id_int = None
+        
         for entry in entries:
             try:
                 image_url = entry.get('image_url')
+                keyboard = self._get_news_keyboard(entry, chat_id_int) if chat_id_int else None
                 
                 if image_url:
                     # Send with image
@@ -562,7 +569,8 @@ O bot verifica automaticamente os feeds e envia novas notícias!
                         chat_id=chat_id,
                         photo=image_url,
                         caption=caption,
-                        parse_mode=ParseMode.HTML
+                        parse_mode=ParseMode.HTML,
+                        reply_markup=keyboard
                     )
                 else:
                     # Send as text
@@ -571,7 +579,8 @@ O bot verifica automaticamente os feeds e envia novas notícias!
                         chat_id=chat_id,
                         text=message,
                         parse_mode=ParseMode.HTML,
-                        disable_web_page_preview=True
+                        disable_web_page_preview=True,
+                        reply_markup=keyboard
                     )
                 
                 self.db.mark_as_sent(entry['id'])
