@@ -156,7 +156,7 @@ RSS_FEEDS = {
             "name": "CISA Advisories",
             "url": "https://www.cisa.gov/cybersecurity-advisories/all.xml",
             "category": "advisories",
-            "priority": "high"
+            "priority": "medium"
         },
     ],
     
