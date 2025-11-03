@@ -376,13 +376,14 @@ O bot verifica automaticamente os feeds e envia novas notícias!
             await query.answer("⛔ Apenas o administrador pode fazer broadcast.", show_alert=True)
             return
         
-        await query.answer()
+        # Answer immediately to avoid timeout
+        await query.answer("📤 Processando broadcast...")
         
         # Extract news ID from callback data
         try:
             news_id = int(query.data.replace("broadcast_", ""))
         except:
-            await query.answer("❌ Erro ao processar ID da notícia.", show_alert=True)
+            await query.edit_message_text("❌ Erro ao processar ID da notícia.")
             return
         
         # Get news entry from database
@@ -390,12 +391,12 @@ O bot verifica automaticamente os feeds e envia novas notícias!
             self.db.cursor.execute("SELECT * FROM news_entries WHERE id = ?", (news_id,))
             row = self.db.cursor.fetchone()
             if not row:
-                await query.answer("❌ Notícia não encontrada.", show_alert=True)
+                await query.edit_message_text("❌ Notícia não encontrada.")
                 return
             entry = dict(row)
         except Exception as e:
             logger.error(f"Error getting news for broadcast: {e}")
-            await query.answer("❌ Erro ao buscar notícia.", show_alert=True)
+            await query.edit_message_text("❌ Erro ao buscar notícia.")
             return
         
         # Get all active users
@@ -852,6 +853,30 @@ O bot verifica automaticamente os feeds e envia novas notícias!
         
         await update.message.reply_text(message, parse_mode=ParseMode.HTML)
     
+    async def error_handler(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle errors in the bot"""
+        try:
+            raise context.error
+        except Exception as e:
+            error_msg = str(e)
+            
+            # Log the error
+            logger.error(f"Bot error: {error_msg}", exc_info=context.error)
+            
+            # Ignore "Query is too old" errors (they're expected sometimes)
+            if "query is too old" in error_msg.lower() or "query id is invalid" in error_msg.lower():
+                logger.debug("Ignoring expired callback query")
+                return
+            
+            # For other errors, try to notify the user
+            if update and update.effective_message:
+                try:
+                    await update.effective_message.reply_text(
+                        "❌ Ocorreu um erro ao processar sua solicitação. Tente novamente."
+                    )
+                except:
+                    pass
+    
     def setup_handlers(self):
         """Setup command and callback handlers"""
         self.application.add_handler(CommandHandler("start", self.start_command))
@@ -871,6 +896,9 @@ O bot verifica automaticamente os feeds e envia novas notícias!
         self.application.add_handler(CommandHandler("users", self.admin_users_command))
         self.application.add_handler(CommandHandler("broadcast", self.admin_broadcast_command))
         self.application.add_handler(CommandHandler("feedstatus", self.admin_feedstatus_command))
+        
+        # Error handler
+        self.application.add_error_handler(self.error_handler)
         
         logger.info("Bot handlers configured successfully")
     
