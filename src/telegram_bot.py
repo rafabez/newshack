@@ -402,10 +402,26 @@ O bot verifica automaticamente os feeds e envia novas notícias!
         # Get all active users
         users = self.db.get_all_users(days=30)
         
-        await query.edit_message_text(
+        # Update status message (check if original message has photo or text)
+        status_text = (
             f"📤 Enviando broadcast para {len(users)} usuários...\n\n"
             f"📰 {entry.get('title', '')[:50]}..."
         )
+        
+        try:
+            if query.message.photo:
+                # Original message has photo, edit caption
+                await query.edit_message_caption(caption=status_text)
+            else:
+                # Original message is text only
+                await query.edit_message_text(status_text)
+        except Exception as e:
+            # If edit fails, send new message
+            logger.warning(f"Failed to edit message, sending new: {e}")
+            await context.bot.send_message(
+                chat_id=query.message.chat_id,
+                text=status_text
+            )
         
         # Broadcast to all users
         sent = 0
