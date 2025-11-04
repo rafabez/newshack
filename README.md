@@ -237,7 +237,7 @@ Edite o arquivo `.env`:
 
 ```bash
 # Telegram Bot Configuration
-TELEGRAM_BOT_TOKEN=8523870647:AAGMnxPGWnjPPlbMFZfGq9Tf-DY6DTXNQP8
+TELEGRAM_BOT_TOKEN=SEU_TOKEN_AQUI
 TELEGRAM_CHAT_ID=seu_chat_id_aqui
 
 # RSS Feed Check Interval (in minutes)
