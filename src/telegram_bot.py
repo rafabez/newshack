@@ -770,6 +770,8 @@ O bot verifica automaticamente os feeds e envia novas notícias!
             # Attempt to fetch fresh user data from Telegram
             try:
                 chat = await self.application.bot.get_chat(chat_id)
+                logger.info(f"Fetched chat {chat_id}: username={chat.username}, first_name={chat.first_name}")
+                
                 if chat.username and chat.username != username:
                     # Update username in database if it changed
                     username = chat.username
@@ -780,15 +782,18 @@ O bot verifica automaticamente os feeds e envia novas notícias!
                         last_name=chat.last_name
                     )
                     updated_count += 1
+                    logger.info(f"Updated username for {chat_id}: {username}")
                 elif chat.username:
                     username = chat.username
+                else:
+                    logger.warning(f"User {chat_id} has no username in Telegram")
                 
                 # Update name if available
                 if chat.first_name:
                     name = chat.first_name
             except Exception as e:
                 # If we can't fetch (user blocked bot, etc), use stored data
-                logger.debug(f"Could not fetch user {chat_id}: {e}")
+                logger.warning(f"Could not fetch user {chat_id}: {e}")
             
             # Format username display
             username_display = f"@{username}" if username else f"ID:{chat_id}"
@@ -881,6 +886,7 @@ O bot verifica automaticamente os feeds e envia novas notícias!
             try:
                 # Fetch fresh data from Telegram API
                 chat = await self.application.bot.get_chat(chat_id)
+                logger.info(f"Fetched chat {chat_id}: username={chat.username}")
                 
                 # Update user info in database
                 self.db.register_user(
@@ -893,13 +899,16 @@ O bot verifica automaticamente os feeds e envia novas notícias!
                 if chat.username:
                     if not old_username:
                         new_usernames += 1
+                        logger.info(f"New username found for {chat_id}: @{chat.username}")
                     updated += 1
+                else:
+                    logger.warning(f"User {chat_id} has no username in Telegram")
                 
                 # Rate limiting
                 await asyncio.sleep(0.1)
                 
             except Exception as e:
-                logger.debug(f"Could not update user {chat_id}: {e}")
+                logger.warning(f"Could not update user {chat_id}: {e}")
                 failed += 1
         
         result_message = f"""
