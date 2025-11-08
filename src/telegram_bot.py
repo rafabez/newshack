@@ -925,7 +925,7 @@ O bot verifica automaticamente os feeds e envia novas notícias!
 • Novos usernames descobertos: {new_usernames}
 • Falhas (bloqueou bot): {failed}
 
-ℹ️ <i>Usuários sem username não configuraram @ no Telegram</i>
+ℹ️ <i>Usernames são capturados automaticamente quando usuários interagem com o bot.</i>
 
 Use /users para ver a lista atualizada!
 """
