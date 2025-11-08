@@ -296,6 +296,20 @@ class Database:
         except Exception as e:
             logger.error(f"Error registering user: {e}")
     
+    def update_user_profile(self, chat_id: int, username: str = None, first_name: str = None, last_name: str = None):
+        """Update user profile without changing last_seen timestamp"""
+        try:
+            self.cursor.execute("""
+                UPDATE users 
+                SET username = ?,
+                    first_name = ?,
+                    last_name = ?
+                WHERE chat_id = ?
+            """, (username, first_name, last_name, chat_id))
+            self.conn.commit()
+        except Exception as e:
+            logger.error(f"Error updating user profile: {e}")
+    
     def log_command(self, chat_id: int, command: str):
         """Log a command execution"""
         try:
@@ -391,6 +405,30 @@ class Database:
         except Exception as e:
             logger.error(f"Error getting users: {e}")
             return []
+    
+    def fix_user_last_seen(self):
+        """Fix last_seen for all users based on their last actual command"""
+        try:
+            # Update last_seen to match the last command execution time
+            self.cursor.execute("""
+                UPDATE users
+                SET last_seen = (
+                    SELECT MAX(executed_at)
+                    FROM command_usage
+                    WHERE command_usage.chat_id = users.chat_id
+                )
+                WHERE EXISTS (
+                    SELECT 1 FROM command_usage
+                    WHERE command_usage.chat_id = users.chat_id
+                )
+            """)
+            affected = self.cursor.rowcount
+            self.conn.commit()
+            logger.info(f"Fixed last_seen for {affected} users")
+            return affected
+        except Exception as e:
+            logger.error(f"Error fixing last_seen: {e}")
+            return 0
     
     def close(self):
         """Close database connection"""

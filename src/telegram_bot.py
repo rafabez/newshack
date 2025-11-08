@@ -837,6 +837,24 @@ O bot verifica automaticamente os feeds e envia novas notícias!
         )
     
     @admin_only
+    async def admin_fixlastseen_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Admin command - fix last_seen timestamps based on actual command usage"""
+        await update.message.reply_text("🔧 Corrigindo timestamps de última interação...")
+        
+        affected = self.db.fix_user_last_seen()
+        
+        if affected > 0:
+            await update.message.reply_text(
+                f"✅ <b>Timestamps Corrigidos!</b>\n\n"
+                f"• {affected} usuário(s) atualizado(s)\n"
+                f"• Agora mostra a data do último comando real\n\n"
+                f"Use /users para verificar.",
+                parse_mode=ParseMode.HTML
+            )
+        else:
+            await update.message.reply_text("❌ Nenhum usuário foi atualizado.")
+    
+    @admin_only
     async def admin_feedstatus_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Admin command - detailed feed status"""
         feed_status = self.db.get_feed_status()
@@ -926,6 +944,7 @@ O bot verifica automaticamente os feeds e envia novas notícias!
         self.application.add_handler(CommandHandler("adminstats", self.admin_stats_command))
         self.application.add_handler(CommandHandler("users", self.admin_users_command))
         self.application.add_handler(CommandHandler("broadcast", self.admin_broadcast_command))
+        self.application.add_handler(CommandHandler("fixlastseen", self.admin_fixlastseen_command))
         self.application.add_handler(CommandHandler("feedstatus", self.admin_feedstatus_command))
         
         # Error handler
