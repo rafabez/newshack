@@ -134,7 +134,6 @@ O bot verifica automaticamente os feeds e envia novas notícias!
 
 🔸 /adminstats - Estatísticas detalhadas (usuários, uso)
 🔸 /users - Listar todos os usuários do bot
-🔸 /updateusers - Atualizar usernames de todos os usuários
 🔸 /broadcast [msg] - Enviar mensagem para todos
 🔸 /feedstatus - Status detalhado dos feeds RSS
 """
@@ -756,44 +755,12 @@ O bot verifica automaticamente os feeds e envia novas notícias!
             await update.message.reply_text("❌ Nenhum usuário registrado.")
             return
         
-        await update.message.reply_text(f"🔍 Buscando informações de {len(users)} usuários...")
-        
         message = f"👥 <b>Usuários do Bot ({len(users)} total)</b>\n\n"
         
-        updated_count = 0
         for user in users[:20]:  # Limit to 20
-            # Try to get updated user info from Telegram API
             username = user.get('username')
             name = user.get('first_name', 'Anônimo')
             chat_id = user['chat_id']
-            
-            # Attempt to fetch fresh user data from Telegram
-            try:
-                chat = await self.application.bot.get_chat(chat_id)
-                logger.info(f"Fetched chat {chat_id}: username={chat.username}, first_name={chat.first_name}")
-                
-                if chat.username and chat.username != username:
-                    # Update username in database if it changed
-                    username = chat.username
-                    self.db.register_user(
-                        chat_id=chat_id,
-                        username=chat.username,
-                        first_name=chat.first_name,
-                        last_name=chat.last_name
-                    )
-                    updated_count += 1
-                    logger.info(f"Updated username for {chat_id}: {username}")
-                elif chat.username:
-                    username = chat.username
-                else:
-                    logger.warning(f"User {chat_id} has no username in Telegram")
-                
-                # Update name if available
-                if chat.first_name:
-                    name = chat.first_name
-            except Exception as e:
-                # If we can't fetch (user blocked bot, etc), use stored data
-                logger.warning(f"Could not fetch user {chat_id}: {e}")
             
             # Format username display
             username_display = f"@{username}" if username else f"ID:{chat_id}"
@@ -818,8 +785,7 @@ O bot verifica automaticamente os feeds e envia novas notícias!
         if len(users) > 20:
             message += f"\n... e mais {len(users) - 20} usuários"
         
-        if updated_count > 0:
-            message += f"\n\n✅ {updated_count} username(s) atualizado(s)"
+        message += f"\n\n<i>ℹ️ Usernames são capturados quando usuários interagem com o bot</i>"
         
         await update.message.reply_text(message, parse_mode=ParseMode.HTML)
     
@@ -860,119 +826,6 @@ O bot verifica automaticamente os feeds e envia novas notícias!
             f"Enviado: {sent}\n"
             f"Falhou: {failed}"
         )
-    
-    @admin_only
-    async def admin_updateusers_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Admin command - update all usernames from Telegram API"""
-        users = self.db.get_all_users()  # Get all users, not just recent
-        
-        if not users:
-            await update.message.reply_text("❌ Nenhum usuário registrado.")
-            return
-        
-        await update.message.reply_text(
-            f"🔄 Atualizando informações de {len(users)} usuários...\n"
-            f"Isso pode levar alguns segundos."
-        )
-        
-        updated = 0
-        failed = 0
-        new_usernames = 0
-        with_username = 0
-        without_username = 0
-        
-        for user in users:
-            chat_id = user['chat_id']
-            old_username = user.get('username')
-            
-            try:
-                # Fetch fresh data from Telegram API
-                chat = await self.application.bot.get_chat(chat_id)
-                logger.info(f"Fetched chat {chat_id}: username={chat.username}, old={old_username}")
-                
-                # Update user info in database
-                self.db.register_user(
-                    chat_id=chat_id,
-                    username=chat.username,
-                    first_name=chat.first_name,
-                    last_name=chat.last_name
-                )
-                
-                if chat.username:
-                    with_username += 1
-                    if not old_username:
-                        new_usernames += 1
-                        logger.info(f"New username found for {chat_id}: @{chat.username}")
-                    updated += 1
-                else:
-                    without_username += 1
-                    logger.warning(f"User {chat_id} ({chat.first_name}) has NO username in Telegram")
-                
-                # Rate limiting
-                await asyncio.sleep(0.1)
-                
-            except Exception as e:
-                logger.warning(f"Could not update user {chat_id}: {e}")
-                failed += 1
-        
-        result_message = f"""
-✅ <b>Atualização Concluída!</b>
-
-📊 <b>Resultados:</b>
-• Total de usuários: {len(users)}
-• Com username (@): {with_username}
-• Sem username: {without_username}
-• Novos usernames descobertos: {new_usernames}
-• Falhas (bloqueou bot): {failed}
-
-ℹ️ <i>Usernames são capturados automaticamente quando usuários interagem com o bot.</i>
-
-Use /users para ver a lista atualizada!
-"""
-        
-        await update.message.reply_text(result_message, parse_mode=ParseMode.HTML)
-    
-    @admin_only
-    async def admin_debugusers_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Admin command - debug user information"""
-        users = self.db.get_all_users(days=30)
-        
-        if not users:
-            await update.message.reply_text("❌ Nenhum usuário registrado.")
-            return
-        
-        await update.message.reply_text(f"🔍 Analisando {len(users)} usuários...\n")
-        
-        details = []
-        for i, user in enumerate(users[:10], 1):  # Limit to 10 for readability
-            chat_id = user['chat_id']
-            stored_username = user.get('username')
-            stored_name = user.get('first_name', 'N/A')
-            
-            try:
-                chat = await self.application.bot.get_chat(chat_id)
-                api_username = chat.username
-                api_name = chat.first_name
-                
-                details.append(
-                    f"{i}. Chat ID: {chat_id}\n"
-                    f"   DB: @{stored_username if stored_username else 'None'} | {stored_name}\n"
-                    f"   API: @{api_username if api_username else 'None'} | {api_name}\n"
-                    f"   Status: {'✅ Match' if stored_username == api_username else '⚠️ Diferente'}\n"
-                )
-            except Exception as e:
-                details.append(
-                    f"{i}. Chat ID: {chat_id}\n"
-                    f"   DB: @{stored_username if stored_username else 'None'}\n"
-                    f"   API: ❌ Erro - {str(e)[:30]}\n"
-                )
-        
-        message = "<b>🔍 Debug de Usuários</b>\n\n" + "\n".join(details)
-        
-        if len(users) > 10:
-            message += f"\n\n<i>... e mais {len(users) - 10} usuários</i>"
-        
-        await update.message.reply_text(message, parse_mode=ParseMode.HTML)
     
     @admin_only
     async def admin_feedstatus_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -1063,8 +916,6 @@ Use /users para ver a lista atualizada!
         # Admin commands
         self.application.add_handler(CommandHandler("adminstats", self.admin_stats_command))
         self.application.add_handler(CommandHandler("users", self.admin_users_command))
-        self.application.add_handler(CommandHandler("updateusers", self.admin_updateusers_command))
-        self.application.add_handler(CommandHandler("debugusers", self.admin_debugusers_command))
         self.application.add_handler(CommandHandler("broadcast", self.admin_broadcast_command))
         self.application.add_handler(CommandHandler("feedstatus", self.admin_feedstatus_command))
         
