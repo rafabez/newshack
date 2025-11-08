@@ -62,6 +62,15 @@ class TelegramBot:
         try:
             user = update.effective_user
             chat_id = update.effective_chat.id
+            
+            # Log user info for debugging
+            logger.info(
+                f"Tracking user: chat_id={chat_id}, "
+                f"username={user.username}, "
+                f"first_name={user.first_name}, "
+                f"command={command}"
+            )
+            
             self.db.register_user(
                 chat_id=chat_id,
                 username=user.username,
@@ -70,7 +79,7 @@ class TelegramBot:
             )
             self.db.log_command(chat_id=chat_id, command=command)
         except Exception as e:
-            logger.error(f"Error tracking user: {e}")
+            logger.error(f"Error tracking user: {e}", exc_info=True)
     
     def _is_admin(self, chat_id: int) -> bool:
         """Check if user is admin"""
