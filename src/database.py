@@ -406,30 +406,6 @@ class Database:
             logger.error(f"Error getting users: {e}")
             return []
     
-    def fix_user_last_seen(self):
-        """Fix last_seen for all users based on their last actual command"""
-        try:
-            # Update last_seen to match the last command execution time
-            self.cursor.execute("""
-                UPDATE users
-                SET last_seen = (
-                    SELECT MAX(executed_at)
-                    FROM command_usage
-                    WHERE command_usage.chat_id = users.chat_id
-                )
-                WHERE EXISTS (
-                    SELECT 1 FROM command_usage
-                    WHERE command_usage.chat_id = users.chat_id
-                )
-            """)
-            affected = self.cursor.rowcount
-            self.conn.commit()
-            logger.info(f"Fixed last_seen for {affected} users")
-            return affected
-        except Exception as e:
-            logger.error(f"Error fixing last_seen: {e}")
-            return 0
-    
     def close(self):
         """Close database connection"""
         if self.conn:
